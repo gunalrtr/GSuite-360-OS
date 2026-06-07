@@ -221,6 +221,10 @@ export default function LoginPage() {
               </span>
             </div>
 
+            <div className="text-[10px] text-center text-slate-500 font-mono -mt-2 mb-2">
+              Loaded ID: {process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ? `${process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID.substring(0, 18)}...` : "None"}
+            </div>
+
             {/* Quick Demo Bypass Button */}
             <button
               onClick={() => handleLogin("gunalrtr@gmail.com", "Gunal")}
