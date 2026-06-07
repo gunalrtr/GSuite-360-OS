@@ -3846,6 +3846,11 @@ export default function DashboardPage() {
           </section>
         )}
 
+        {/* Global Copyright Footer */}
+        <footer className="w-full text-center py-6 mt-6 pb-24 border-t border-slate-900/40 text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+          © 2026 Tomcodex Technologies
+        </footer>
+
       </div>
 
       {/* 5. Mobile Fixed Bottom Navigation Bar */}

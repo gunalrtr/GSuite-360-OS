@@ -234,9 +234,14 @@ export default function LoginPage() {
         </div>
 
         {/* Footer Disclaimer */}
-        <p className="text-center text-xs text-slate-500 mt-8 px-4 leading-relaxed">
-          GSuite 360 will access your Work, Calendar, and Finance logs. All session data is stored securely in your Supabase configuration.
-        </p>
+        <div className="text-center mt-8 px-4 space-y-2">
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            GSuite 360 will access your Work, Calendar, and Finance logs. All session data is stored securely in your Supabase configuration.
+          </p>
+          <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+            © 2026 Tomcodex Technologies
+          </p>
+        </div>
       </div>
 
       {/* Mock Identity Modal */}
