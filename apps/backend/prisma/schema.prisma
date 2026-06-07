@@ -1,0 +1,295 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  STORE_EXECUTIVE
+  ADMIN
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LEAVE
+  HALF_DAY
+}
+
+enum Shift {
+  MORNING    // 09:00 – 13:00 (4 hrs, 0.5 salary impact)
+  AFTERNOON  // 14:00 – 18:00 (4 hrs, 0.5 salary impact)
+  FULL_DAY   // 09:00 – 18:00 (8 hrs, 1.0 salary impact)
+}
+
+enum SessionType {
+  WORK
+  BREAK
+}
+
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  name          String?
+  avatarUrl     String?
+  role          Role           @default(USER)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  attendance     Attendance[]
+  salaryConfig   SalaryConfig?
+  salaryLogs     SalaryLog[]
+  tasks          Task[]
+  workDiaries    WorkDiary[]
+  storeLogs      StoreLog[]
+  calendarEvents CalendarEvent[]
+  expenses       Expense[]
+  budgets        Budget[]
+  emis           EMI[]
+  sips           SIP[]
+  journeys       Journey[]
+  purchaseGoals  PurchaseGoal[]
+  documents      Document[]
+  aiMemories     AiMemory[]
+}
+
+model Attendance {
+  id           String           @id @default(uuid())
+  userId       String
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date         DateTime         // Day at 00:00:00
+  status       AttendanceStatus @default(PRESENT)
+  shift        Shift            @default(FULL_DAY)
+  checkedInAt  DateTime?
+  checkedOutAt DateTime?
+  totalHours   Float            @default(0.0)
+  otHours      Float            @default(0.0)
+  breakMinutes Float            @default(0.0)
+  salaryImpact Float            @default(1.0) // 1.0 = full day, 0.5 = morning/afternoon shift, 0.0 = leave
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  
+  sessions     WorkSession[]
+  
+  @@unique([userId, date])
+}
+
+model WorkSession {
+  id           String      @id @default(uuid())
+  attendanceId String
+  attendance   Attendance  @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  type         SessionType @default(WORK)
+  startTime    DateTime
+  endTime      DateTime?
+  createdAt    DateTime    @default(now())
+}
+
+model SalaryConfig {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  baseSalary    Float    @default(16640.0) // Monthly CTC base (640/day × 26 days)
+  workingDays   Int      @default(26)      // Standard working days/attendance month (26th→25th cycle)
+  dailySalary   Float    @default(640.0)   // Daily rate
+  hourlyRate    Float    @default(80.0)    // Derived (dailySalary / 8)
+  otRatePerHour Float    @default(100.00)  // OT hourly pay rate (1.25× base)
+  currency      String   @default("INR")
+  updatedAt     DateTime @updatedAt
+}
+
+model SalaryLog {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month           Int      // 1 to 12
+  year            Int
+  expectedSalary  Float    // Base config
+  earnedTillDate  Float    // Calculated based on attendance and status
+  otEarnings      Float    @default(0.0)
+  leaveDeductions Float    @default(0.0)
+  netEarned       Float    // earnedTillDate + otEarnings - leaveDeductions
+  projectedSalary Float    // Expected full month end earnings
+  updatedAt       DateTime @updatedAt
+
+  @@unique([userId, month, year])
+}
+
+model Task {
+  id                String     @id @default(uuid())
+  userId            String
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title             String
+  description       String?
+  priority          Priority   @default(MEDIUM)
+  status            TaskStatus @default(TODO)
+  dueDate           DateTime?
+  tags              String[]   @default([])
+  carryForwardCount Int        @default(0)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+}
+
+model WorkDiary {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date         DateTime // Day at 00:00:00
+  whatIDid     String
+  issuesFaced  String?
+  learnings    String?
+  notes        String?
+  tomorrowPlan String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, date])
+}
+
+model StoreLog {
+  id                 String   @id @default(uuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date               DateTime // Day at 00:00:00
+  grnCount           Int      @default(0)
+  poCount            Int      @default(0)
+  vehicleEntries     Int      @default(0)
+  materialReceipts   Int      @default(0)
+  stockVerifications Int      @default(0)
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([userId, date])
+}
+
+model CalendarEvent {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  category    String   // MEETING, BIRTHDAY, LEAVE, HOLIDAY
+  location    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Float
+  description String
+  category    String   // Food, Fuel, Medical, Bills, Shopping, Travel
+  date        DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Budget {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category  String
+  limit     Float
+  month     Int      // 1 to 12
+  year      Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, category, month, year])
+}
+
+model EMI {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  loanName        String
+  amount          Float
+  dueDate         DateTime
+  remainingMonths Int
+  totalMonths     Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model SIP {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fundName       String
+  amount         Float
+  investmentDate Int      // Day of month (e.g. 5, 10)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model Journey {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  destination  String
+  budget       Float
+  startDate    DateTime
+  endDate      DateTime
+  checklist    String   @default("[]") // JSON array string of checklist items: [{"id":"1","text":"Book tickets","done":false}]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model PurchaseGoal {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemName     String
+  targetAmount Float
+  savedAmount  Float    @default(0.0)
+  targetDate   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Document {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  category      String   // ID Proof, Bill, Resume, Medical, Tax, Other
+  fileUrl       String?  // Local upload storage mock url (or Supabase url)
+  googleDriveId String?  // Google Drive File ID if uploaded/synced to Drive
+  size          Int?     // File size in bytes
+  mimeType      String?  // MIME type
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model AiMemory {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  key       String
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, key])
+}
