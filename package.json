@@ -10,7 +10,8 @@
     "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
     "build:frontend": "npm run build --workspace=apps/frontend",
     "build:backend": "npm run build --workspace=apps/backend",
-    "build": "npm run build:backend && npm run build:frontend"
+    "build": "npm run build:frontend",
+    "build:all": "npm run build:backend && npm run build:frontend"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
