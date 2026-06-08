@@ -278,6 +278,10 @@ export default function DashboardPage() {
   const [showSyncOnly, setShowSyncOnly] = useState<boolean>(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [docMode, setDocMode] = useState<"upload" | "link">("upload");
+  const [linkDocName, setLinkDocName] = useState("");
+  const [linkDocUrl, setLinkDocUrl] = useState("");
+  const [linkDocCategory, setLinkDocCategory] = useState("ID Proof");
 
   const [showAddJourney, setShowAddJourney] = useState(false);
   const [newDestination, setNewDestination] = useState("");
@@ -1537,6 +1541,94 @@ export default function DashboardPage() {
         setUploadProgress(0);
       }
     }, 1000);
+  };
+
+  const handleLinkDocument = async () => {
+    if (!user) return;
+    if (!linkDocName || !linkDocUrl) {
+      setActionSuccessMessage("Error: Name and Google Drive URL are required");
+      setTimeout(() => setActionSuccessMessage(""), 4000);
+      return;
+    }
+
+    setUploading(true);
+    setUploadProgress(0);
+
+    const interval = setInterval(() => {
+      setUploadProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          return 100;
+        }
+        return prev + 25;
+      });
+    }, 100);
+
+    setTimeout(async () => {
+      let googleDriveId = "";
+      const match = linkDocUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (match && match[1]) {
+        googleDriveId = match[1];
+      } else {
+        googleDriveId = `drive-link-${Date.now()}`;
+      }
+
+      const payload = {
+        userId: user.id,
+        name: linkDocName,
+        category: linkDocCategory,
+        size: 0,
+        mimeType: "application/vnd.google-apps.document",
+        fileUrl: linkDocUrl,
+        googleDriveId,
+      };
+
+      try {
+        const res = await fetch(`${API_URL}/documents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setDocuments([data.document, ...documents]);
+          setActionSuccessMessage(`Linked "${linkDocName}" successfully!`);
+          setTimeout(() => setActionSuccessMessage(""), 4000);
+          setLinkDocName("");
+          setLinkDocUrl("");
+          setDocMode("upload");
+        }
+      } catch (err) {
+        const mockRecord = {
+          id: `doc-mock-${Date.now()}`,
+          name: linkDocName,
+          category: linkDocCategory,
+          fileUrl: linkDocUrl,
+          googleDriveId,
+          size: 0,
+          mimeType: "application/vnd.google-apps.document",
+          createdAt: new Date().toISOString(),
+        };
+        setDocuments([mockRecord, ...documents]);
+        setActionSuccessMessage(`Linked "${linkDocName}" (mock fallback)!`);
+        setTimeout(() => setActionSuccessMessage(""), 4000);
+        setLinkDocName("");
+        setLinkDocUrl("");
+        setDocMode("upload");
+      } finally {
+        setUploading(false);
+        setUploadProgress(0);
+      }
+    }, 600);
+  };
+
+  const openDriveLink = (doc: any) => {
+    if (doc.fileUrl && doc.fileUrl.startsWith("http")) {
+      window.open(doc.fileUrl, "_blank", "noopener,noreferrer");
+    } else if (doc.googleDriveId) {
+      const driveUrl = `https://drive.google.com/file/d/${doc.googleDriveId}/view?usp=sharing`;
+      window.open(driveUrl, "_blank", "noopener,noreferrer");
+    }
   };
 
   const handleSyncDocument = async (docId: string) => {
@@ -3308,19 +3400,45 @@ export default function DashboardPage() {
             <div className="glass-panel rounded-3xl p-6 space-y-4">
               <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                 <Folder className="w-4 h-4 text-sky-400" />
-                Documents Upload
+                Documents Upload & Link
               </h3>
+
+              {/* Segmented Mode Selector */}
+              <div className="flex bg-[#070b13] p-1 rounded-2xl border border-slate-850">
+                <button
+                  onClick={() => setDocMode("upload")}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    docMode === "upload"
+                      ? "bg-blue-600 text-white shadow-lg"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  Upload File
+                </button>
+                <button
+                  onClick={() => setDocMode("link")}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                    docMode === "link"
+                      ? "bg-blue-600 text-white shadow-lg"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  Link Drive File
+                </button>
+              </div>
 
               <div className="space-y-3">
                 {uploading ? (
                   <div className="bg-[#0b1324]/40 border border-dashed border-slate-800 rounded-2xl p-6 text-center space-y-3">
-                    <span className="text-xs text-slate-400 font-bold block animate-pulse">Uploading and syncing to Google Drive...</span>
+                    <span className="text-xs text-slate-400 font-bold block animate-pulse">
+                      {docMode === "upload" ? "Uploading and syncing to Google Drive..." : "Saving and linking Google Drive file..."}
+                    </span>
                     <div className="max-w-xs mx-auto h-2 bg-slate-900 rounded-full overflow-hidden">
                       <div className="h-full bg-blue-500 rounded-full transition-all duration-100" style={{ width: `${uploadProgress}%` }} />
                     </div>
                     <span className="text-[10px] text-slate-500 font-medium block">{uploadProgress}% uploaded</span>
                   </div>
-                ) : (
+                ) : docMode === "upload" ? (
                   <div className="grid grid-cols-1 gap-3">
                     <div>
                       <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Select File to Upload</label>
@@ -3370,6 +3488,58 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Document Name</label>
+                      <input 
+                        type="text"
+                        value={linkDocName}
+                        onChange={(e) => setLinkDocName(e.target.value)}
+                        placeholder="e.g. Q4 Budget Sheet"
+                        className="w-full bg-[#070b13] border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Google Drive URL or File ID</label>
+                      <input 
+                        type="text"
+                        value={linkDocUrl}
+                        onChange={(e) => setLinkDocUrl(e.target.value)}
+                        placeholder="e.g. https://drive.google.com/file/d/..."
+                        className="w-full bg-[#070b13] border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Category</label>
+                        <select 
+                          value={linkDocCategory}
+                          onChange={(e) => setLinkDocCategory(e.target.value)}
+                          className="w-full bg-[#070b13] border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                        >
+                          <option value="ID Proof">ID Proof</option>
+                          <option value="Bill">Bill</option>
+                          <option value="Resume">Resume</option>
+                          <option value="Medical">Medical</option>
+                          <option value="Tax">Tax</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+
+                      <div className="flex items-end">
+                        <button
+                          onClick={handleLinkDocument}
+                          className="w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          Link Document
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -3411,7 +3581,17 @@ export default function DashboardPage() {
                             <FileText className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <span className="text-xs font-bold text-slate-200 block truncate">{d.name}</span>
+                            {d.googleDriveId || (d.fileUrl && d.fileUrl.startsWith("http")) ? (
+                              <button
+                                onClick={() => openDriveLink(d)}
+                                className="text-xs font-bold text-slate-200 hover:text-blue-400 hover:underline transition-colors text-left block truncate max-w-full"
+                                title="Open in Google Drive"
+                              >
+                                {d.name} <span className="text-[10px] opacity-75">🔗</span>
+                              </button>
+                            ) : (
+                              <span className="text-xs font-bold text-slate-200 block truncate">{d.name}</span>
+                            )}
                             <span className="text-[9px] text-slate-500 block mt-0.5 font-medium">
                               {d.category} • {sizeMB} MB
                             </span>

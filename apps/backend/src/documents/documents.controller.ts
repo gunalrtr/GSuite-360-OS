@@ -19,6 +19,8 @@ export class DocumentsController {
     @Body('category') category: string,
     @Body('size') size: number,
     @Body('mimeType') mimeType: string,
+    @Body('fileUrl') fileUrl?: string,
+    @Body('googleDriveId') googleDriveId?: string,
   ) {
     const activeUserId = userId || 'mock-user-uuid';
     const doc = await this.documentsService.createDocument(activeUserId, {
@@ -26,6 +28,8 @@ export class DocumentsController {
       category,
       size,
       mimeType,
+      fileUrl,
+      googleDriveId,
     });
     return { success: true, document: doc };
   }

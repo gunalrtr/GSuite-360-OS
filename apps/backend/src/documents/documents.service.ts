@@ -93,17 +93,19 @@ export class DocumentsService {
   async createDocument(userId: string, data: Partial<DocumentData>): Promise<DocumentData> {
     const name = data.name || 'document.pdf';
     const category = data.category || 'Other';
-    const size = data.size || 1024 * 100; // 100KB default
+    const size = data.size !== undefined ? data.size : 1024 * 100; // 100KB default
     const mimeType = data.mimeType || 'application/pdf';
     const fileUrl = data.fileUrl || `/uploads/${name}`;
 
-    // Upload to Google Drive (automatically)
-    let googleDriveId: string | undefined = undefined;
-    try {
-      const driveFile = await this.googleDriveService.uploadFile(name, mimeType);
-      googleDriveId = driveFile.id;
-    } catch (err) {
-      this.logger.error('Google Drive sync failed on upload:', err);
+    // Use existing googleDriveId if provided, otherwise upload to Google Drive (automatically)
+    let googleDriveId = data.googleDriveId;
+    if (!googleDriveId && !fileUrl.startsWith('http')) {
+      try {
+        const driveFile = await this.googleDriveService.uploadFile(name, mimeType);
+        googleDriveId = driveFile.id;
+      } catch (err) {
+        this.logger.error('Google Drive sync failed on upload:', err);
+      }
     }
 
     try {
